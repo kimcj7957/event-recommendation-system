@@ -79,13 +79,22 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
   };
 
   const locationSuggestions = [
-    '서울', '서울 강남구', '서울 강북구', '서울 강서구', '서울 관악구', 
-    '서울 광진구', '서울 구로구', '서울 금천구', '서울 노원구', '서울 도봉구',
-    '서울 동대문구', '서울 동작구', '서울 마포구', '서울 서대문구', '서울 서초구',
-    '서울 성동구', '서울 성북구', '서울 송파구', '서울 양천구', '서울 영등포구',
-    '서울 용산구', '서울 은평구', '서울 종로구', '서울 중구', '서울 중랑구',
-    '서울 홍대', '서울 신촌', '서울 이태원', '서울 명동', '서울 강남역',
-    '서울 신림', '서울 건대', '서울 잠실'
+
+    
+    // 세부 지역명
+    '서울 중구', '서울 마포구',
+    // 실제 데이터에서 가장 많이 사용되는 공연장들 (TOP 10)
+    '서교동 407-8 B1, Seoul, Korea ClubFF',
+    '홍대 언플러그드',
+    '우주정거장', 
+    '서울특별시 마포구 양화로 12길 6',
+    '스트레인지프룻',
+    '생기스튜디오',
+    '신도시',
+    'Club Victim',
+    '서울 마포구 양화로6길 27 지하 1층',
+    '무대륙',
+    '서울 중구 수표로6길 10 지하1층'
   ];
 
   return (
@@ -166,17 +175,15 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                 <option key={model} value={model}>
                   {model.toUpperCase()}
                   {model === 'tfidf' && ' (기본)'}
-                  {model === 'lsa' && ' (의미 분석)'}
-                  {model === 'word2vec' && ' (임베딩)'}
-                  {model === 'hybrid' && ' (통합)'}
-                  {model === 'ranknet' && ' (개인화 AI)'}
+                  {model === 'ranknet' && ' (개인화)'}
+                  {model === 'balanced' && ' (균등가중치)'}
                 </option>
               ))}
             </select>
             {/* 선택된 모델 설명 */}
             {modelInfo.model_descriptions[selectedModel] && (
               <p className="mt-2 text-xs text-gray-600">
-                {modelInfo.model_descriptions[selectedModel]}
+                💡 {modelInfo.model_descriptions[selectedModel]}
               </p>
             )}
             
@@ -187,6 +194,17 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                   🎯 <strong>개인화 추천</strong>: 당신의 좋아요 패턴을 학습하여 맞춤형 이벤트를 추천합니다.
                   <br />
                   💡 더 많은 좋아요를 누를수록 추천이 정확해집니다!
+                </p>
+              </div>
+            )}
+            
+            {/* Balanced 모델 특별 안내 */}
+            {selectedModel === 'balanced' && (
+              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs text-green-700">
+                  ⚖️ <strong>균등 가중치 추천</strong>: 내용, 가격, 위치를 균등하게 고려하여 추천합니다.
+                  <br />
+                  📊 내용 34% + 가격 33% + 위치 33% = 균형잡힌 추천
                 </p>
               </div>
             )}

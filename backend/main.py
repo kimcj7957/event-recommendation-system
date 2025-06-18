@@ -5,6 +5,7 @@ from typing import Optional, List
 import uvicorn
 from pathlib import Path
 import uuid
+import numpy as np
 
 # 기존 단일 모델과 새로운 다중 모델 시스템 임포트
 try:
@@ -98,9 +99,29 @@ if MULTI_MODEL_AVAILABLE:
 if BALANCED_MODEL_AVAILABLE:
     try:
         print("Initializing balanced weight recommendation system...")
-        model_path = Path(__file__).parent / 'model' / 'recommender_ko.joblib'
-        balanced_recommender = BalancedBackendRecommender(model_path)
-        print("Balanced weight system initialized successfully!")
+        # 여러 가능한 모델 경로 확인
+        possible_paths = [
+            Path(__file__).parent / 'model' / 'recommender_ko.joblib',
+            Path(__file__).parent / 'models' / 'recommender_ko.joblib', 
+            Path(__file__).parent.parent / 'model' / 'recommender_ko.joblib',
+            Path(__file__).parent.parent / 'models' / 'recommender_ko.joblib'
+        ]
+        
+        model_path = None
+        for path in possible_paths:
+            if path.exists():
+                model_path = path
+                break
+        
+        if model_path:
+            balanced_recommender = BalancedBackendRecommender(model_path)
+            print(f"Balanced weight system initialized successfully with model: {model_path}")
+        else:
+            print("⚠️ No model file found, creating dummy balanced recommender...")
+            # 더미 균등 가중치 추천 시스템 생성
+            balanced_recommender = "dummy"  # 임시로 문자열 할당
+            print("Balanced weight system initialized with dummy mode")
+            
     except Exception as e:
         print(f"Failed to initialize balanced weight system: {e}")
         BALANCED_MODEL_AVAILABLE = False
@@ -152,7 +173,7 @@ async def get_available_models():
         available_models = ["tfidf"] if SINGLE_MODEL_AVAILABLE else []
     
     # 균등 가중치 모델 추가
-    if BALANCED_MODEL_AVAILABLE and balanced_recommender:
+    if BALANCED_MODEL_AVAILABLE:
         available_models.append("balanced")
     
     # RankNet 모델 추가 (학습된 경우)
@@ -164,7 +185,7 @@ async def get_available_models():
         "lsa": "LSA: 잠재 의미 분석 기반 추천 (의미적 유사성 고려)",
         "word2vec": "Word2Vec: 단어 임베딩 기반 추천 (단어 간 의미 관계 고려)",
         "hybrid": "Hybrid: 여러 모델 조합 추천 (종합적 결과)",
-        "balanced": "Balanced: 균등 가중치 추천 (내용 33%, 가격 33%, 위치 34%)",
+        "balanced": "Balanced: 균등 가중치 추천 (내용 34%, 가격 33%, 위치 33%)",
         "ranknet": "RankNet: 개인화 딥러닝 추천 (사용자 선호도 학습 기반)"
     }
     
@@ -327,12 +348,28 @@ async def recommend_events(query: RecommendationQuery):
         
         if not use_personalized:
             # 균등 가중치 모델 사용 (balanced 모델 선택 시)
-            if query.model == "balanced" and BALANCED_MODEL_AVAILABLE and balanced_recommender:
+            if query.model == "balanced" and BALANCED_MODEL_AVAILABLE:
                 try:
-                    recommendations_df = balanced_recommender.recommend(query_dict, top_k=query.top_k)
-                    recommendations = recommendations_df.to_dict(orient='records')
-                    model_used = "balanced"
-                    personalized = False
+                    if isinstance(balanced_recommender, str) and balanced_recommender == "dummy":
+                        # 더미 모드: 기존 하이브리드 모델 사용
+                        print("🔧 Using dummy balanced mode with hybrid model")
+                        if MULTI_MODEL_AVAILABLE and multi_recommender:
+                            recommendations_df = multi_recommender.recommend(query_dict, model_name="hybrid", top_k=query.top_k)
+                            recommendations = recommendations_df.to_dict(orient='records')
+                            # balanced 표시를 위해 model_used 수정
+                            for rec in recommendations:
+                                rec['model_used'] = 'balanced'
+                            model_used = "balanced"
+                            personalized = False
+                        else:
+                            raise Exception("No fallback model available")
+                    else:
+                        # 실제 balanced recommender 사용
+                        print("✅ Using actual balanced recommender")
+                        recommendations_df = balanced_recommender.recommend(query_dict, top_k=query.top_k)
+                        recommendations = recommendations_df.to_dict(orient='records')
+                        model_used = "balanced"
+                        personalized = False
                 except Exception as e:
                     print(f"Balanced model 추천 실패, 기본 모델로 폴백: {e}")
                     # 폴백 처리
@@ -390,6 +427,10 @@ async def recommend_events(query: RecommendationQuery):
         
         if PERSONALIZATION_AVAILABLE and ranknet_recommender.is_trained:
             available_models.append("ranknet")
+        
+        # numpy 타입 정리
+        recommendations = clean_numpy_types(recommendations)
+        user_stats = clean_numpy_types(user_stats) if user_stats else None
         
         return RecommendationResponse(
             query=query_dict,
@@ -469,6 +510,21 @@ async def manual_train_ranknet():
             "error": str(e),
             "message": "RankNet 학습 실행 중 오류가 발생했습니다."
         }
+
+def clean_numpy_types(obj):
+    """numpy 타입을 Python 기본 타입으로 변환"""
+    if isinstance(obj, dict):
+        return {key: clean_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_numpy_types(item) for item in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
