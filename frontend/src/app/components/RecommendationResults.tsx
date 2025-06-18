@@ -331,9 +331,9 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
                       }
                     </span>
                   </button>
-                </div>
-                
-                {/* 링크 버튼 */}
+              </div>
+
+              {/* 링크 버튼 */}
                 <a
                   href={event.link}
                   target="_blank"

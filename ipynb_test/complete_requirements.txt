@@ -1,0 +1,45 @@
+# ============================================================================
+# 🎯 Jupyter 노트북용 완전한 의존성 패키지 리스트
+# balanced_training_demo.ipynb 실행을 위한 모든 필수 패키지들
+# ============================================================================
+
+# 📚 Jupyter 노트북 환경
+jupyter>=1.0.0
+notebook>=6.0.0
+ipykernel>=6.0.0
+ipywidgets>=7.6.0
+
+# 📊 데이터 처리 및 분석
+pandas>=1.3.0              # 데이터프레임 처리
+numpy>=1.21.0               # 수치 계산
+
+# 📈 데이터 시각화
+matplotlib>=3.5.0           # 기본 플롯
+seaborn>=0.11.0            # 통계 시각화
+
+# 🤖 머신러닝 및 자연어 처리
+scikit-learn>=1.0.0        # 머신러닝 (TfidfVectorizer, CountVectorizer, HashingVectorizer, 
+                           # TruncatedSVD, NearestNeighbors, cosine_similarity, 
+                           # MinMaxScaler, OneHotEncoder, ColumnTransformer)
+
+# 🔬 과학 계산
+scipy>=1.7.0               # 희소 행렬 (sparse.hstack, sparse.csr_matrix)
+
+# 💾 모델 저장/로드
+joblib>=1.1.0              # 모델 직렬화
+
+# 🌐 웹 API 개발 (선택사항 - API 서버 구축용)
+fastapi>=0.68.0            # REST API 프레임워크
+pydantic>=1.8.0            # 데이터 검증
+uvicorn>=0.15.0            # ASGI 서버
+
+# 🔧 개발 도구 (선택사항)
+# gensim>=4.0.0            # Word2Vec (설치 어려우면 주석 처리)
+
+# ============================================================================
+# 📝 설치 명령어:
+# pip install -r complete_requirements.txt
+# 
+# 🚀 최소 필수 패키지만 설치하려면:
+# pip install pandas numpy matplotlib seaborn scikit-learn scipy joblib jupyter notebook
+# ============================================================================ 

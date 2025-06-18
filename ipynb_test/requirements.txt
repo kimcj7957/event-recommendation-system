@@ -1,0 +1,22 @@
+# Jupyter notebook 실행을 위한 의존성
+jupyter>=1.0.0
+notebook>=6.0.0
+ipykernel>=6.0.0
+ipywidgets>=7.6.0
+
+# 데이터 처리 및 분석
+pandas>=1.3.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# 머신러닝
+scikit-learn>=1.0.0
+scipy>=1.7.0
+joblib>=1.1.0
+
+# 텍스트 처리 (선택사항)
+# gensim>=4.0.0  # Word2Vec용 (설치 어려우면 주석 처리)
+
+# 기타 유틸리티
+pathlib2>=2.3.0 

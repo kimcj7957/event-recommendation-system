@@ -19,6 +19,14 @@ try:
 except ImportError:
     MULTI_MODEL_AVAILABLE = False
 
+# 균등 가중치 추천 시스템 임포트
+try:
+    from balanced_recommender import BalancedBackendRecommender
+    from pathlib import Path
+    BALANCED_MODEL_AVAILABLE = True
+except ImportError:
+    BALANCED_MODEL_AVAILABLE = False
+
 # 사용자 선호도 및 RankNet 시스템 임포트
 try:
     from user_preferences import preference_manager
@@ -74,6 +82,8 @@ class RecommendationResponse(BaseModel):
 
 # 다중 모델 시스템 초기화
 multi_recommender = None
+balanced_recommender = None
+
 if MULTI_MODEL_AVAILABLE:
     try:
         print("Initializing multi-model recommendation system...")
@@ -83,6 +93,17 @@ if MULTI_MODEL_AVAILABLE:
     except Exception as e:
         print(f"Failed to initialize multi-model system: {e}")
         MULTI_MODEL_AVAILABLE = False
+
+# 균등 가중치 모델 초기화
+if BALANCED_MODEL_AVAILABLE:
+    try:
+        print("Initializing balanced weight recommendation system...")
+        model_path = Path(__file__).parent / 'model' / 'recommender_ko.joblib'
+        balanced_recommender = BalancedBackendRecommender(model_path)
+        print("Balanced weight system initialized successfully!")
+    except Exception as e:
+        print(f"Failed to initialize balanced weight system: {e}")
+        BALANCED_MODEL_AVAILABLE = False
 
 @app.on_event("startup")
 async def startup_event():
@@ -130,6 +151,10 @@ async def get_available_models():
     else:
         available_models = ["tfidf"] if SINGLE_MODEL_AVAILABLE else []
     
+    # 균등 가중치 모델 추가
+    if BALANCED_MODEL_AVAILABLE and balanced_recommender:
+        available_models.append("balanced")
+    
     # RankNet 모델 추가 (학습된 경우)
     if PERSONALIZATION_AVAILABLE and ranknet_recommender.is_trained:
         available_models.append("ranknet")
@@ -139,6 +164,7 @@ async def get_available_models():
         "lsa": "LSA: 잠재 의미 분석 기반 추천 (의미적 유사성 고려)",
         "word2vec": "Word2Vec: 단어 임베딩 기반 추천 (단어 간 의미 관계 고려)",
         "hybrid": "Hybrid: 여러 모델 조합 추천 (종합적 결과)",
+        "balanced": "Balanced: 균등 가중치 추천 (내용 33%, 가격 33%, 위치 34%)",
         "ranknet": "RankNet: 개인화 딥러닝 추천 (사용자 선호도 학습 기반)"
     }
     
@@ -300,8 +326,28 @@ async def recommend_events(query: RecommendationQuery):
                 use_personalized = False
         
         if not use_personalized:
+            # 균등 가중치 모델 사용 (balanced 모델 선택 시)
+            if query.model == "balanced" and BALANCED_MODEL_AVAILABLE and balanced_recommender:
+                try:
+                    recommendations_df = balanced_recommender.recommend(query_dict, top_k=query.top_k)
+                    recommendations = recommendations_df.to_dict(orient='records')
+                    model_used = "balanced"
+                    personalized = False
+                except Exception as e:
+                    print(f"Balanced model 추천 실패, 기본 모델로 폴백: {e}")
+                    # 폴백 처리
+                    if MULTI_MODEL_AVAILABLE and multi_recommender:
+                        available_models = multi_recommender.get_available_models()
+                        actual_model = available_models[0] if available_models else "tfidf"
+                        recommendations_df = multi_recommender.recommend(query_dict, model_name=actual_model, top_k=query.top_k)
+                        recommendations = recommendations_df.to_dict(orient='records')
+                        model_used = actual_model
+                        personalized = False
+                    else:
+                        raise HTTPException(status_code=500, detail="No recommendation models available")
+            
             # 기본 다중 모델 시스템 사용
-            if MULTI_MODEL_AVAILABLE and multi_recommender:
+            elif MULTI_MODEL_AVAILABLE and multi_recommender:
                 available_models = multi_recommender.get_available_models()
                 
                 # 요청된 모델이 사용 가능한지 확인
@@ -317,7 +363,7 @@ async def recommend_events(query: RecommendationQuery):
                 recommendations = recommendations_df.to_dict(orient='records')
                 model_used = actual_model
                 personalized = False
-                
+            
             # 단일 모델 폴백
             elif SINGLE_MODEL_AVAILABLE:
                 recommendations_df = single_recommend(query_dict, top_k=query.top_k)
@@ -326,7 +372,7 @@ async def recommend_events(query: RecommendationQuery):
                     rec['model_used'] = 'tfidf'
                 model_used = "tfidf"
                 personalized = False
-                
+            
             else:
                 raise HTTPException(status_code=500, detail="No recommendation models available")
         
