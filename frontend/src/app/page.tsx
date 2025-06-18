@@ -10,6 +10,7 @@ interface SearchQuery {
   location: string;
   model: string;
   topK: number;
+  userId: string;
 }
 
 interface Recommendation {
@@ -52,7 +53,8 @@ export default function HomePage() {
           price_max: query.priceMax,
           location: query.location,
           model: query.model,
-          top_k: query.topK
+          top_k: query.topK,
+          user_id: query.userId
         }),
       });
 

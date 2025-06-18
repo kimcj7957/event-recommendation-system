@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Recommendation {
   link: string;
@@ -12,6 +12,7 @@ interface Recommendation {
   price_door: number;
   score: number;
   model_used?: string;
+  personalized_score?: number;
 }
 
 interface SearchQuery {
@@ -29,8 +30,26 @@ interface RecommendationResultsProps {
 
 export default function RecommendationResults({ recommendations, searchQuery }: RecommendationResultsProps) {
   const [likedEvents, setLikedEvents] = useState<Set<string>>(new Set());
+  const [isTogglingLike, setIsTogglingLike] = useState<Set<string>>(new Set());
 
-  const toggleLike = (eventLink: string) => {
+  // 사용자 ID 관리 (로컬스토리지 사용)
+  const getUserId = () => {
+    if (typeof window !== 'undefined') {
+      let userId = localStorage.getItem('event_user_id');
+      if (!userId) {
+        userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('event_user_id', userId);
+      }
+      return userId;
+    }
+    return 'anonymous';
+  };
+
+  const toggleLike = async (event: any) => {
+    const userId = getUserId();
+    const eventLink = event.link;
+    
+    // UI 즉시 업데이트 (낙관적 업데이트)
     setLikedEvents(prev => {
       const newSet = new Set(prev);
       if (newSet.has(eventLink)) {
@@ -40,7 +59,98 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
       }
       return newSet;
     });
+
+    // 로딩 상태 설정
+    setIsTogglingLike(prev => {
+      const newSet = new Set(prev);
+      newSet.add(eventLink);
+      return newSet;
+    });
+
+    try {
+      // 백엔드에 좋아요 토글 요청
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          event_link: eventLink,
+          event_data: {
+            content: event.content,
+            place: event.place,
+            price_adv: event.price_adv,
+            price_door: event.price_door,
+            date: event.date,
+            time: event.time
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        // 요청 실패 시 UI 상태 되돌리기
+        setLikedEvents(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(eventLink)) {
+            newSet.delete(eventLink);
+          } else {
+            newSet.add(eventLink);
+          }
+          return newSet;
+        });
+        throw new Error('좋아요 요청 실패');
+      }
+
+      const data = await response.json();
+      
+      // 실제 서버 응답에 따라 상태 업데이트
+      setLikedEvents(prev => {
+        const newSet = new Set(prev);
+        if (data.result.is_liked) {
+          newSet.add(eventLink);
+        } else {
+          newSet.delete(eventLink);
+        }
+        return newSet;
+      });
+
+      // 사용자 통계 업데이트 알림 (선택적)
+      if (data.user_stats?.total_likes >= 5) {
+        console.log('충분한 좋아요 데이터가 수집되었습니다. 개인화 추천이 곧 활성화됩니다!');
+      }
+
+    } catch (error) {
+      console.error('좋아요 토글 실패:', error);
+      // 실패 시 사용자에게 알림 (토스트 등으로 구현 가능)
+    } finally {
+      // 로딩 상태 해제
+      setIsTogglingLike(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventLink);
+        return newSet;
+      });
+    }
   };
+
+  // 컴포넌트 마운트 시 사용자의 좋아요 목록 로드
+  useEffect(() => {
+    const loadUserLikes = async () => {
+      const userId = getUserId();
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/${userId}/likes`);
+        if (response.ok) {
+          const data = await response.json();
+          const userLikedEvents = new Set(data.likes.map((like: any) => like.event_link));
+          setLikedEvents(userLikedEvents);
+        }
+      } catch (error) {
+        console.error('사용자 좋아요 목록 로드 실패:', error);
+      }
+    };
+
+    loadUserLikes();
+  }, []);
 
   if (recommendations.length === 0) {
     return (
@@ -101,6 +211,7 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
       case 'lsa': return 'bg-purple-500';
       case 'word2vec': return 'bg-green-500';
       case 'hybrid': return 'bg-gradient-to-r from-blue-500 to-purple-500';
+      case 'ranknet': return 'bg-gradient-to-r from-pink-500 to-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -136,6 +247,12 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
                   <span className={`text-xs font-medium px-2 py-1 rounded-full border ${getScoreColor(event.score)}`}>
                     {Math.round(event.score * 100)}% 매치
                   </span>
+                  {/* 개인화 점수 표시 */}
+                  {event.personalized_score && (
+                    <span className="text-xs text-pink-600 bg-pink-50 px-2 py-1 rounded-full border border-pink-200">
+                      개인화: {Math.round(event.personalized_score * 100)}%
+                    </span>
+                  )}
                 </div>
                 {event.model_used && (
                   <span className={`text-xs text-white px-2 py-1 rounded-full ${getModelBadgeColor(event.model_used)}`}>
@@ -196,18 +313,22 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
                 {/* 좋아요 버튼 */}
                 <div className="flex items-center justify-center">
                   <button
-                    onClick={() => toggleLike(event.link)}
+                    onClick={() => toggleLike(event)}
+                    disabled={isTogglingLike.has(event.link)}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
                       likedEvents.has(event.link)
                         ? 'bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100'
                         : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                    }`}
+                    } ${isTogglingLike.has(event.link) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span className={`text-lg ${likedEvents.has(event.link) ? 'animate-pulse' : ''}`}>
-                      {likedEvents.has(event.link) ? '❤️' : '🤍'}
+                      {isTogglingLike.has(event.link) ? '⏳' : (likedEvents.has(event.link) ? '❤️' : '🤍')}
                     </span>
                     <span className="text-sm font-medium">
-                      {likedEvents.has(event.link) ? '관심 이벤트' : '관심 추가'}
+                      {isTogglingLike.has(event.link) 
+                        ? '처리 중...' 
+                        : (likedEvents.has(event.link) ? '관심 이벤트' : '관심 추가')
+                      }
                     </span>
                   </button>
                 </div>
@@ -234,7 +355,7 @@ export default function RecommendationResults({ recommendations, searchQuery }: 
             💡 <strong>추천 점수</strong>는 검색 조건과의 유사도를 나타냅니다
           </p>
           <p className="text-xs text-gray-500">
-            더 정확한 추천을 위해 구체적인 키워드나 지역을 입력해보세요
+            ❤️ 좋아요를 5개 이상 누르시면 개인화 추천(RankNet)이 활성화됩니다!
           </p>
         </div>
       </div>

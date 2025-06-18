@@ -9,6 +9,7 @@ interface SearchFormProps {
     location: string;
     model: string;
     topK: number;
+    userId: string;
   }) => void;
   isLoading: boolean;
 }
@@ -28,6 +29,19 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     available_models: ['tfidf'],
     model_descriptions: {}
   });
+
+  // 사용자 ID 가져오기
+  const getUserId = () => {
+    if (typeof window !== 'undefined') {
+      let userId = localStorage.getItem('event_user_id');
+      if (!userId) {
+        userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('event_user_id', userId);
+      }
+      return userId;
+    }
+    return null;
+  };
 
   // 사용 가능한 모델 정보 로드
   useEffect(() => {
@@ -52,12 +66,15 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const userId = getUserId();
+    
     onSearch({
       keywords,
-      priceMax: priceMax || null,
+      priceMax,
       location,
       model: selectedModel,
-      topK
+      topK,
+      userId: userId || 'anonymous'  // null 처리
     });
   };
 
@@ -152,6 +169,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                   {model === 'lsa' && ' (의미 분석)'}
                   {model === 'word2vec' && ' (임베딩)'}
                   {model === 'hybrid' && ' (통합)'}
+                  {model === 'ranknet' && ' (개인화 AI)'}
                 </option>
               ))}
             </select>
@@ -160,6 +178,17 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
               <p className="mt-2 text-xs text-gray-600">
                 {modelInfo.model_descriptions[selectedModel]}
               </p>
+            )}
+            
+            {/* RankNet 모델 특별 안내 */}
+            {selectedModel === 'ranknet' && (
+              <div className="mt-2 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                <p className="text-xs text-pink-700">
+                  🎯 <strong>개인화 추천</strong>: 당신의 좋아요 패턴을 학습하여 맞춤형 이벤트를 추천합니다.
+                  <br />
+                  💡 더 많은 좋아요를 누를수록 추천이 정확해집니다!
+                </p>
+              </div>
             )}
           </div>
 
