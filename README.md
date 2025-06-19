@@ -74,6 +74,11 @@ cd frontend
 # 의존성 설치
 npm install
 
+# npm도 install 하셔야 합니다!
+brew install node
+brew install next react react-dom
+
+
 # 개발 서버 실행
 npm run dev
 ```
