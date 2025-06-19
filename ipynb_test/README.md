@@ -4,7 +4,7 @@
 
 ## 📁 파일 구성
 
-- **`model_training_demo.ipynb`**: 전체 모델 학습 과정을 보여주는 Jupyter 노트북
+- **`balanced_training_demo.ipynb`**: 전체 모델(데이터 전처리 + TF-IDF + LSA + Word2Vec + Hybrid + Balanced) 학습 과정을 보여주는 Jupyter 노트북
 - **`simple_model_demo.py`**: 핵심 내용을 Python 스크립트로 구현한 버전
 - **`requirements.txt`**: Jupyter 노트북 실행에 필요한 의존성
 - **`README.md`**: 이 파일
